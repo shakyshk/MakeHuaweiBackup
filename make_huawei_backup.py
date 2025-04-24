@@ -250,7 +250,10 @@ for dispositivo in dispositivos_to_backup:
         try:
             with open(nome_do_backup, "w") as file:
                 for index, line in enumerate(output):
-                    if index == len(output)-1:
+                    if index == 0:
+                        if comando_2 in line:
+                            pass
+                    elif index == len(output)-1:
                         if line == prompt_comando_finalizado:
                             pass
                         else:
