@@ -1,6 +1,9 @@
 ---
 # Configurações do script:
-max_logs = 5
+max_logs = 40
+send_telegram_message = true
+token_do_bot = 
+id_do_chat = 
 ---
 
 Exemplo:

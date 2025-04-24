@@ -6,6 +6,18 @@ import os
 import uuid
 import glob
 import time
+import requests
+import json
+
+#########################################################
+# Inicio do script
+#########################################################
+
+message_data = {
+    "token_do_bot": "",
+    "id_do_chat": "",
+    "enviar_mensagem_telegram": None
+}
 
 #########################################################
 # Declarando função para imprimir mensagem na tela e salvar nos logs.
@@ -37,7 +49,7 @@ def print_and_log(message, level="info"):
         case _:
             print(f"\nO level de log {level} não existe!")
             logging.critical(f"O level de log {level} não existe!")
-            end_script(1)
+            end_script(1, message_data)
 
 #########################################################
 # Declarando uma função simples para finalizar
@@ -45,18 +57,105 @@ def print_and_log(message, level="info"):
 #########################################################
 
 
-def end_script(finish_code: 0):
+def end_script(finish_code: 0, message_data: None):
     match finish_code:
         case 0:
+            if message_data["enviar_mensagem_telegram"]:
+                send_telegram_messages(message_data)
             print_and_log(f"""\n*********************************************************\n
                         Programa finalizado com sucesso!
                         \n/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/\n""")
             sys.exit(0)
         case 1:
+            if message_data["enviar_mensagem_telegram"]:
+                send_telegram_messages(message_data)
             print_and_log(f"""\n*********************************************************\n
                         Programa finalizado com erro!
                         \n/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/*/\n""", "critical")
             sys.exit(1)
+
+
+#########################################################
+# Funções para envio de mensagens via telegram
+#########################################################
+
+def send_telegram_messages(message_data):
+    print_and_log(f"""\n*********************************************************\n
+              Enviando mensagens via Telegram...""")
+    telegram_info = {
+        "token_do_bot": message_data["token_do_bot"],
+        "id_do_chat": message_data["id_do_chat"]
+    }
+    for dispositivo in message_data["dispositivos"]:
+        send_telegram_message(telegram_info, dispositivo, message_data["dispositivos"][dispositivo]
+                              ["backup_with_success"], message_data["dispositivos"][dispositivo])
+        time.sleep(1)
+
+
+def escape_markdown_v2(text_to_escape):
+    text_to_escape = str(text_to_escape)
+    escape_chars = r'\_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in text_to_escape)
+
+
+def send_telegram_message(telegram_info: None, device_name: None, is_success: bool, message_data: None):
+    json_formatted_str = json.dumps(
+        message_data, indent=2, ensure_ascii=False)
+
+    message_data["nome_do_dispositivo"] = escape_markdown_v2(device_name)
+    message_data["data_e_hora_atual"] = escape_markdown_v2(
+        message_data["data_e_hora_atual"])
+    message_data["duração"] = escape_markdown_v2(message_data["duração"])
+    message_data["bkp_name"] = escape_markdown_v2(
+        message_data["bkp_name"])
+    mensagem = ""
+    if is_success:
+        mensagem = f"""─────────────────────────
+✅ BACKUP: *{message_data["nome_do_dispositivo"]}*
+_Backup do HUAWEI realizado com sucesso\\!_
+─────────────────────────
+🏢 *Huawei:* {message_data["nome_do_dispositivo"]}
+📅 *Data:* {message_data["data_e_hora_atual"]}
+⏳ *Duração:* {message_data["duração"]} minutos
+💾 *Backup:* {message_data["bkp_name"]}
+─────────────────────────"""
+    else:
+        mensagem = f"""─────────────────────────
+❌ BACKUP: *{message_data["nome_do_dispositivo"]}*
+_Erro ao realizar backup do HUAWEI\\!_
+─────────────────────────
+🏢 *Huawei:* {message_data["nome_do_dispositivo"]}
+📅 *Data:* {message_data["data_e_hora_atual"]}
+⏳ *Duração:* {message_data["duração"]} minutos
+─────────────────────────"""
+
+    print_and_log(f"""
+---------------------------------------------------------
+Enviando mensagem: {device_name}
+Backup com sucesso? {is_success}
+Dados do backup: {json_formatted_str}
+Mensagem:
+{mensagem}
+""")
+
+    url = f"https://api.telegram.org/bot{telegram_info["token_do_bot"]}/sendMessage"
+    dados = {
+        'chat_id': telegram_info["id_do_chat"],
+        'text': mensagem,
+        'parse_mode': 'MarkdownV2'
+    }
+    try:
+        resposta = requests.post(url, data=dados)
+        resposta.raise_for_status()
+    except:
+        print_and_log(
+            f"Código: {resposta.status_code}\nErro no envio da mensagem!\n{resposta.description}", "critical")
+    if resposta.status_code == 200:
+        print_and_log(
+            f"Código: {resposta.status_code}\nSucesso no envio da mensagem!")
+    else:
+        print_and_log(
+            f"Código: {resposta.status_code}\nErro no envio da mensagem!\n{resposta.description}", "critical")
 
 #########################################################
 # Configurando os logs do script
@@ -116,10 +215,45 @@ try:
                     except Exception as error:
                         print_and_log(
                             "\nErro: Erro ao ler o parâmetro 'max_logs'", "critical")
-                        end_script(1)
+                        end_script(1, message_data)
                     else:
                         print_and_log(
                             f"Máximo de logs a serem mantidos no sistema: {max_logs}")
+                if "send_telegram_message" in line:
+                    try:
+                        string_send_telegram_message = line.split("=")[
+                            1].strip()
+                        if "true" in string_send_telegram_message:
+                            message_data["enviar_mensagem_telegram"] = True
+                        elif "false" in string_send_telegram_message:
+                            message_data["enviar_mensagem_telegram"] = False
+                    except Exception as error:
+                        print_and_log(
+                            "\nErro: Erro ao ler o parâmetro 'send_telegram_message'", "critical")
+                        end_script(1, message_data)
+                    else:
+                        print_and_log(
+                            f"Deve enviar mensagem via telegram: {message_data["enviar_mensagem_telegram"]}")
+                if "token_do_bot" in line:
+                    try:
+                        message_data["token_do_bot"] = line.split("=")[
+                            1].strip()
+                    except Exception as error:
+                        print_and_log(
+                            "\nErro: Erro ao ler o parâmetro 'token_do_bot'", "critical")
+                    else:
+                        print_and_log(
+                            f"Token do bot telegram: {message_data["token_do_bot"]}")
+                if "id_do_chat" in line:
+                    try:
+                        message_data["id_do_chat"] = line.split("=")[
+                            1].strip()
+                    except Exception as error:
+                        print_and_log(
+                            "\nErro: Erro ao ler o parâmetro 'id_do_chat'", "critical")
+                    else:
+                        print_and_log(
+                            f"ID do chat que o bot enviará a mensagem: {message_data["id_do_chat"]}")
             elif config_section == 2:
                 if line[0:1] == "-":
                     continue
@@ -131,13 +265,14 @@ try:
                             "ip": str(device_data[0].strip()),
                             "porta": int(device_data[1].strip()),
                             "usuario": str(device_data[2].strip()),
-                            "senha": str(device_data[3].strip())
+                            "senha": str(device_data[3].strip()),
+                            "backup_with_success": False
                         }
                         dispositivos_to_backup[device_name] = device_data
                     except Exception as error:
                         print_and_log(
                             f"\nErro: Erro na leitura dos dados dos dispositivos no arquivo de configuração\n{error}", "critical")
-                        end_script(1)
+                        end_script(1, message_data)
                     else:
                         print_and_log(
                             f"Sucesso ao ler os dados do dispositivo {device_name} no arquivo de configuração.")
@@ -145,12 +280,14 @@ except IOError as error:
     print_and_log(f"""\nErro ao tentar abrir o arquivo settings.txt:\n
         {error}\n
         #########################################################\n""", "critical")
-    end_script(1)
+    end_script(1, message_data)
 except Exception as error:
     print_and_log(f"""\nErro ao tentar abrir o arquivo settings.txt:\n
         {error}\n
         #########################################################\n""", "critical")
-    end_script(1)
+    end_script(1, message_data)
+
+message_data["dispositivos"] = dispositivos_to_backup
 
 print_and_log(f"""Configurações lidas com sucesso!""")
 
@@ -199,6 +336,10 @@ def aguardar_o_comando_finalizar(shell, prompt, timeout):
 
 
 for dispositivo in dispositivos_to_backup:
+    print_and_log(f"""\n---------------------------------------------------------\n
+Acessando: {dispositivo}...""")
+    message_data["dispositivos"][dispositivo]["hora_inicio"] = time.time()
+    message_data["dispositivos"][dispositivo]["bkp_name"] = ""
     try:
         endereço = dispositivos_to_backup[dispositivo]["ip"]
         porta = dispositivos_to_backup[dispositivo]["porta"]
@@ -210,7 +351,8 @@ for dispositivo in dispositivos_to_backup:
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         client.connect(hostname=endereço, port=porta,
                        username=usuario, password=senha)
-        print_and_log("Conectado")
+
+        print_and_log("Conectado!")
 
         shell = client.invoke_shell()
         prompt_comando_finalizado = f"<{dispositivo}>"
@@ -232,20 +374,22 @@ for dispositivo in dispositivos_to_backup:
     except paramiko.AuthenticationException:
         print_and_log(
             f"\nAutenticação para {dispositivo} falhou, verifique o usuário e senha.", "critical")
-        end_script(1)
+        end_script(1, message_data)
     except paramiko.SSHException as ssh_exception:
         print_and_log(
             f"\nConexão SSH para {dispositivo} falhou:\n{ssh_exception}", "critical")
-        end_script(1)
+        end_script(1, message_data)
     except Exception as error:
         print_and_log(
             f"\nErro na conexão com o host: {dispositivo}\n{error}", "critical")
-        end_script(1)
+        end_script(1, message_data)
     else:
         date_now = datetime.now().strftime('%d-%m-%Y')
         time_now = datetime.now().strftime('%H-%M-%S')
         nome_do_backup = f"../BACKUP__HUAWEI-{dispositivo}__DATA-{date_now}__HORA-{time_now}.txt"
         print_and_log(f"Salvando backup: {nome_do_backup.split("/")[-1]}")
+        message_data["dispositivos"][dispositivo]["bkp_name"] = nome_do_backup.split(
+            "/")[-1]
         output = output.split("\n")
         try:
             with open(nome_do_backup, "w") as file:
@@ -270,17 +414,27 @@ for dispositivo in dispositivos_to_backup:
             print_and_log(f"""\nErro ao tentar salvar o backup {nome_do_backup}:\n
                 {error}\n
                 #########################################################\n""", "critical")
-            end_script(1)
+            end_script(1, message_data)
         except Exception as error:
             print_and_log(f"""\nErro ao tentar salvar o backup {nome_do_backup}:\n
                 {error}\n
                 #########################################################\n""", "critical")
-            end_script(1)
+            end_script(1, message_data)
         else:
             print_and_log(f"""Backup salvo com sucesso!""")
+            message_data["dispositivos"][dispositivo]["backup_with_success"] = True
+            dispositivos_to_backup[dispositivo]["backup_with_success"] = True
+    finally:
+        client.close()
+
+    message_data["dispositivos"][dispositivo]["hora_final"] = time.time()
+    message_data["dispositivos"][dispositivo]["duração"] = round(
+        (message_data["dispositivos"][dispositivo]["hora_final"] - message_data["dispositivos"][dispositivo]["hora_inicio"])/60, 2)
+    message_data["dispositivos"][dispositivo]["data_e_hora_atual"] = datetime.now(
+    ).strftime("%d/%m/%Y - %H:%M:%S")
 
 # --------------------------------------------------------
 # Finalizando o programa
 # --------------------------------------------------------
 
-end_script(0)
+end_script(0, message_data)
