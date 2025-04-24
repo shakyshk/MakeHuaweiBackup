@@ -1,0 +1,16 @@
+---
+# Configurações do script:
+max_logs = 5
+---
+
+Exemplo:
+
+* Hosts separados por: -
+* No início e no final da lista: ---
+
+> NOME DO DISPOSITIVO
+IP | PORTA | USUARIO | SENHA
+
+---
+
+---
