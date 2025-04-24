@@ -215,16 +215,16 @@ for dispositivo in dispositivos_to_backup:
         shell = client.invoke_shell()
         prompt_comando_finalizado = f"<{dispositivo}>"
 
-        comando_1 = "screen-length 0 temporary\n"
-        print_and_log(f"Rodando: {comando_1.replace("\n", "")}")
-        shell.send(comando_1)
+        comando_1 = "screen-length 0 temporary"
+        print_and_log(f"Rodando: {comando_1}")
+        shell.send(f"{comando_1}\n")
         output = aguardar_o_comando_finalizar(
             shell, prompt_comando_finalizado, 60)
         print_and_log("Finalizado")
 
-        comando_2 = "display current-configuration\n"
-        print_and_log(f"Rodando: {comando_2.replace("\n", "")}")
-        shell.send(comando_2)
+        comando_2 = "display current-configuration"
+        print_and_log(f"Rodando: {comando_2}")
+        shell.send(f"{comando_2}\n")
         output = aguardar_o_comando_finalizar(
             shell, prompt_comando_finalizado, 120)
         print_and_log("Finalizado")
