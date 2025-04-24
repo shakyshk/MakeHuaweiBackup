@@ -221,8 +221,6 @@ for dispositivo in dispositivos_to_backup:
         output = aguardar_o_comando_finalizar(
             shell, prompt_comando_finalizado, 60)
         print_and_log("Finalizado")
-        print(output)
-        print("-----------------")
 
         comando_2 = "display current-configuration"
         print_and_log(f"Rodando: {comando_2}")
@@ -230,8 +228,6 @@ for dispositivo in dispositivos_to_backup:
         output = aguardar_o_comando_finalizar(
             shell, prompt_comando_finalizado, 120)
         print_and_log("Finalizado")
-        print(output)
-        print("-----------------")
 
     except paramiko.AuthenticationException:
         print_and_log(
@@ -254,17 +250,16 @@ for dispositivo in dispositivos_to_backup:
         try:
             with open(nome_do_backup, "w") as file:
                 for index, line in enumerate(output):
-                    if line == "Info: The configuration takes effect on the current user terminal interface only.":
-                        continue
-                    if line == f"{prompt_comando_finalizado}{comando_1}":
-                        continue
-                    if line == f"{prompt_comando_finalizado}{comando_2}":
-                        continue
-                    if line == f"{comando_2}":
-                        continue
-                    if line == f"{comando_1}":
-                        continue
-                    if index == len(output)-1:
+                    if index < 10:
+                        if comando_1 in line:
+                            continue
+                        elif comando_2 in line:
+                            continue
+                        elif "Info: " in line:
+                            continue
+                        else:
+                            file.write(line)
+                    elif index >= len(output)-11:
                         if line == prompt_comando_finalizado:
                             continue
                         else:
